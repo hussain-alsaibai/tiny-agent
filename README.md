@@ -273,6 +273,9 @@ Tiny Agent intentionally stays small. Contributions that add features should:
 - [tiny-mcp](https://github.com/hussain-alsaibai/tiny-mcp) — MCP server
 - [tiny-agent](https://github.com/hussain-alsaibai/tiny-agent) — Agent framework (this repo)
 - [tiny-embed](https://github.com/hussain-alsaibai/tiny-embed) — Embeddings
+- [tiny-compose](https://github.com/hussain-alsaibai/tiny-compose) — Stack any decorators in any order, declaratively
+- [tiny-trace](https://github.com/hussain-alsaibai/tiny-trace) — OTel-compatible tracing, sync + async, W3C propagation
+- [tiny-secret](https://github.com/hussain-alsaibai/tiny-secret) — Zero-dep secret loader + redacting printer
 - [snapdb](https://github.com/hussain-alsaibai/snapdb) — Embedded DB
 
 ---
@@ -296,4 +299,4 @@ Part of the **tiny-*** zero-dependency toolkit for Python agent infrastructure:
 - [**tiny-embed**](https://github.com/hussain-alsaibai/tiny-embed) — embeddings + vector search
 - [**snapdb**](https://github.com/hussain-alsaibai/snapdb) — embedded DB
 
-12 repos, ~5,200 LOC, zero dependencies across the entire stack. Built by [OpenClaw](https://github.com/hussain-alsaibai).
+15 repos, ~6,400 LOC, zero dependencies across the entire stack. Built by [OpenClaw](https://github.com/hussain-alsaibai).
