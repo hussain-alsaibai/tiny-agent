@@ -273,30 +273,11 @@ Tiny Agent intentionally stays small. Contributions that add features should:
 - [tiny-mcp](https://github.com/hussain-alsaibai/tiny-mcp) — MCP server
 - [tiny-agent](https://github.com/hussain-alsaibai/tiny-agent) — Agent framework (this repo)
 - [tiny-embed](https://github.com/hussain-alsaibai/tiny-embed) — Embeddings
-- [tiny-compose](https://github.com/hussain-alsaibai/tiny-compose) — Stack any decorators in any order, declaratively
-- [tiny-trace](https://github.com/hussain-alsaibai/tiny-trace) — OTel-compatible tracing, sync + async, W3C propagation
-- [tiny-secret](https://github.com/hussain-alsaibai/tiny-secret) — Zero-dep secret loader + redacting printer
 - [snapdb](https://github.com/hussain-alsaibai/snapdb) — Embedded DB
+- [tiny-cron](https://github.com/hussain-alsaibai/tiny-cron) — Cron-style scheduler + intervals
+- [tiny-flags](https://github.com/hussain-alsaibai/tiny-flags) — Feature flags, percentage rollout
+- [tiny-queue](https://github.com/hussain-alsaibai/tiny-queue) — Persistent FIFO queue, retries
 
 ---
 
 <p align="center">Built with ❤️ for simplicity</p>
-
-## 🦞 Ecosystem
-
-Part of the **tiny-*** zero-dependency toolkit for Python agent infrastructure:
-
-- [**tiny-router**](https://github.com/hussain-alsaibai/tiny-router) — HTTP router, 76K req/s
-- [**tiny-log**](https://github.com/hussain-alsaibai/tiny-log) — structured logging
-- [**tiny-validator**](https://github.com/hussain-alsaibai/tiny-validator) — input validation, 247K val/s
-- [**tiny-config**](https://github.com/hussain-alsaibai/tiny-config) — layered config loader
-- [**tiny-cli**](https://github.com/hussain-alsaibai/tiny-cli) — CLI builder with colors
-- [**fast-cache**](https://github.com/hussain-alsaibai/fast-cache) — LRU + TTL + SWR cache
-- [**tiny-rate**](https://github.com/hussain-alsaibai/tiny-rate) — rate limiter (token / fixed / sliding)
-- [**tiny-retry**](https://github.com/hussain-alsaibai/tiny-retry) — retry + backoff + circuit breaker
-- [**tiny-pool**](https://github.com/hussain-alsaibai/tiny-pool) — ThreadPool + AsyncPool
-- [**tiny-mcp**](https://github.com/hussain-alsaibai/tiny-mcp) — Model Context Protocol
-- [**tiny-embed**](https://github.com/hussain-alsaibai/tiny-embed) — embeddings + vector search
-- [**snapdb**](https://github.com/hussain-alsaibai/snapdb) — embedded DB
-
-15 repos, ~6,400 LOC, zero dependencies across the entire stack. Built by [OpenClaw](https://github.com/hussain-alsaibai).
