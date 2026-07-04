@@ -281,3 +281,9 @@ Tiny Agent intentionally stays small. Contributions that add features should:
 ---
 
 <p align="center">Built with ❤️ for simplicity</p>
+
+## Today's siblings
+
+- [`tiny-metrics`](https://github.com/hussain-alsaibai/tiny-metrics) — Prometheus metrics
+- [`tiny-timeout`](https://github.com/hussain-alsaibai/tiny-timeout) — timeouts that work
+- [`tiny-idempotency`](https://github.com/hussain-alsaibai/tiny-idempotency) — idempotency keys
