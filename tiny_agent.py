@@ -7,12 +7,16 @@ MIT License | github.com/tiny-agent/tiny-agent
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
 import time
 import urllib.request
+import uuid
 from abc import ABC, abstractmethod
 from collections import deque
+from contextvars import copy_context
 from dataclasses import dataclass, field, asdict
 from enum import Enum, auto
 from typing import (
@@ -29,7 +33,7 @@ from typing import (
     runtime_checkable,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "Agent",
     "ToolRegistry",
@@ -54,6 +58,9 @@ __all__ = [
     "ToolError",
     "LLMError",
     "PlanningError",
+    "BudgetGovernor",
+    "BudgetExceeded",
+    "IdempotencyGuard",
 ]
 
 # ─────────────────────────── Logging ───────────────────────────
@@ -581,6 +588,9 @@ class AgentConfig:
     enable_planning: bool = True
     enable_delegation: bool = True
     verbose: bool = False
+    budget_limit: float = 1.0       # USD hard cap per run
+    budget_warn_at: float = 0.7     # fire on_warn at this ratio
+    idempotency_path: str | None = None  # deduplication store path
 
 
 # ─────────────────────────── Main Agent ───────────────────────────
@@ -611,6 +621,16 @@ class Agent(Observable):
 
         # System prompt
         self._system_message = Message(role=Role.SYSTEM, content=self.config.system_prompt)
+
+        # Budget + idempotency (v0.2.0)
+        self.budget = BudgetGovernor(
+            limit_usd=self.config.budget_limit,
+            warn_at=self.config.budget_warn_at,
+        )
+        self.idempotency = (
+            IdempotencyGuard(self.config.idempotency_path)
+            if self.config.idempotency_path else None
+        )
 
     # ── Delegation ──
 
@@ -801,6 +821,15 @@ User query: {query}
                 self.emit("error", e)
                 raise
 
+            # Check budget before spending more (v0.2.0)
+            if hasattr(response, "usage") and response.usage:
+                model_name = getattr(self.llm, "model", None) or "unknown"
+                self.budget.check(
+                    model=model_name,
+                    input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
+                    output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
+                )
+
             content = response.content
             tool_calls = response.tool_calls
 
@@ -961,3 +990,99 @@ User query: {query}
 
     def get_steps(self) -> List[ReActStep]:
         return list(self.steps)
+
+
+# ─────────────────────────── Budget & Idempotency (v0.2.0) ───────────────────────────
+
+@dataclass
+class BudgetGovernor:
+    """Runtime cost + token enforcement for agents. Prevents runaway LLM spend.
+
+    Usage:
+        gov = BudgetGovernor(limit_usd=0.50, warn_at=0.7)
+        gov.check("openai/gpt-4", input_tokens=200, output_tokens=80)
+        # raises BudgetExceeded if limit crossed
+    """
+    limit_usd: float = 1.0
+    warn_at: float = 0.7
+    on_warn: Optional[Callable[[float, float], None]] = None
+    _spent: float = 0.0
+    _warned: bool = False
+    _path: Optional[str] = None
+
+    # Approximate pricing (USD per 1M tokens)
+    PRICES = {
+        "gpt-4o": 5.0, "gpt-4o-mini": 0.15,
+        "gpt-4-turbo": 10.0, "gpt-3.5-turbo": 2.0,
+        "claude-3-5-sonnet": 3.0, "claude-3-5-haiku": 0.8,
+        "claude-3-opus": 15.0, "claude-3-haiku": 0.25,
+        "gemini-1.5-pro": 1.25, "gemini-1.5-flash": 0.075,
+        "default": 2.0,
+    }
+
+    def price_for(self, model: str) -> float:
+        for k, v in self.PRICES.items():
+            if k in (model or "").lower():
+                return v
+        return self.PRICES["default"]
+
+    def record(self, model: str, input_tokens: int, output_tokens: int = 0) -> float:
+        cost = (input_tokens + output_tokens) / 1_000_000 * self.price_for(model)
+        self._spent += cost
+        return cost
+
+    def check(self, model: str, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        cost = self.record(model, input_tokens, output_tokens)
+        ratio = cost / self.limit_usd if self.limit_usd > 0 else 1.0
+        if ratio >= 1.0:
+            raise BudgetExceeded(
+                f"Budget exceeded: ${self._spent:.4f} > ${self.limit_usd:.2f}"
+            )
+        if not self._warned and ratio >= self.warn_at and self.on_warn:
+            self._warned = True
+            self.on_warn(self._spent, self.limit_usd)
+
+    @property
+    def spent(self) -> float:
+        return self._spent
+
+    @property
+    def remaining(self) -> float:
+        return max(0.0, self.limit_usd - self._spent)
+
+
+class BudgetExceeded(Exception):
+    """Raised when the agent's runtime budget is exceeded."""
+    pass
+
+
+class IdempotencyGuard:
+    """Prevents duplicate side-effects using a dedup key hash.
+
+    Usage:
+        guard = IdempotencyGuard(path="/tmp/myagent/idempotency")
+        if guard.already_done("issue-123-processed"):
+            return  # skip, already handled
+        guard.mark_done("issue-123-processed")
+        # ... do the work
+    """
+    def __init__(self, path: str = "/tmp/idempotency") -> None:
+        self._path = path
+        self._done: set = set()
+        os.makedirs(path, exist_ok=True)
+        self._load()
+
+    def _key_path(self, key: str) -> str:
+        h = hashlib.sha1(key.encode()).hexdigest()[:16]
+        return os.path.join(self._path, h)
+
+    def _load(self) -> None:
+        for fname in os.listdir(self._path):
+            self._done.add(fname)
+
+    def already_done(self, key: str) -> bool:
+        return os.path.exists(self._key_path(key))
+
+    def mark_done(self, key: str) -> None:
+        open(self._key_path(key), "w").close()
+        self._done.add(os.path.basename(self._key_path(key)))
