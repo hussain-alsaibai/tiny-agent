@@ -271,6 +271,11 @@ Tiny Agent intentionally stays small. Contributions that add features should:
 - [tiny-config](https://github.com/hussain-alsaibai/tiny-config) — Config loader
 - [fast-cache](https://github.com/hussain-alsaibai/fast-cache) — In-memory cache
 - [tiny-mcp](https://github.com/hussain-alsaibai/tiny-mcp) — MCP server
+- [tiny-mcp-client](https://github.com/hussain-alsaibai/tiny-mcp-client) — MCP client (stdio + SSE)
+- [tiny-mcp-gateway](https://github.com/hussain-alsaibai/tiny-mcp-gateway) — MCP proxy/router/gateway
+- [tiny-task](https://github.com/hussain-alsaibai/tiny-task) — Durable task queue
+- [tiny-retry](https://github.com/hussain-alsaibai/tiny-retry) — Retry with jitter + circuit breaker
+- [tiny-webhook](https://github.com/hussain-alsaibai/tiny-webhook) — Production webhook handler
 - [tiny-agent](https://github.com/hussain-alsaibai/tiny-agent) — Agent framework (this repo)
 - [tiny-embed](https://github.com/hussain-alsaibai/tiny-embed) — Embeddings
 - [snapdb](https://github.com/hussain-alsaibai/snapdb) — Embedded DB
