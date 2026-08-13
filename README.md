@@ -1,179 +1,268 @@
 # Tiny Agent — Zero-Dependency Agent Framework
 
-> **Like LangChain, but in one file. Zero dependencies.**
+> **Like LangChain, but in one file. Zero dependencies. Built for autonomous agents.**
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)]()
+[![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)](tiny_agent.py)
+[![Part of the tiny-* ecosystem](https://img.shields.io/badge/tiny--*-ecosystem-purple.svg)](#ecosystem)
 
-Tiny Agent is a **production-quality, zero-dependency** Python agent framework that fits in a single file. It implements the full ReAct (Reason → Act → Observe) loop with tool use, memory, planning, and multi-agent delegation — all using only Python's standard library.
+Tiny Agent is a **production-quality, zero-dependency** Python agent framework in a single file. Full ReAct loop, streaming, checkpoint/suspend, budget enforcement, idempotency guards, multi-agent delegation — all using only Python's standard library.
+
+## What's New (v0.3.0)
+
+- **Streaming ReAct loop** — stream the reasoning process, not just the final answer
+- **Checkpoint integration** — `checkpoint_every=N` decorator auto-saves state every N steps
+- **Better MCP tool schemas** — JSON schema auto-generation now matches MCP protocol
+- **Budget governor** — hard USD limits with warning callbacks
+- **Idempotency guards** — prevent duplicate side-effects from re-runs
+- **5 real-world examples** — bounty hunter, code reviewer, data pipeline, meeting summarizer, incident responder
 
 ## ✨ Features
 
-- **🔄 ReAct Loop** — Full reasoning, action, and observation cycle
-- **🔧 Tool Registry** — Decorator-based tool registration with JSON schema auto-generation
-- **🧠 Memory** — In-memory storage with optional snapdb integration via duck typing
-- **🤖 LLM Agnostic** — Adapters for OpenAI, Anthropic, Ollama, HTTP endpoints, or custom callables
-- **📡 Streaming** — Stream responses in real-time (where supported)
-- **💬 Conversation History** — Automatic context management with configurable limits
-- **🛡️ Error Recovery** — Graceful handling of tool and LLM failures
-- **📋 Planning** — Automatic task decomposition into actionable steps
-- **🤝 Multi-Agent** — Agent-to-agent delegation for complex workflows
-- **📊 Observability** — Event hooks for monitoring and logging
-- **🔒 Safe** — Max iteration limits prevent infinite loops
+| | |
+|---|---|
+| 🔄 **ReAct Loop** | Full reasoning → action → observation cycle |
+| 🔧 **Tool Registry** | Decorator-based registration with MCP-compatible JSON schema |
+| 📡 **Streaming** | Stream the full ReAct reasoning process in real-time |
+| 💾 **Checkpoint/Suspend** | Auto-save every N steps; resume on crash |
+| 🛡️ **Budget Governor** | Hard USD limits; warning callbacks at 70% spend |
+| 🔁 **Idempotency Guards** | SHA-1 dedup keys prevent duplicate side-effects |
+| 🧠 **Memory** | In-memory with optional SnapDB persistence |
+| 🤖 **LLM Agnostic** | OpenAI, Anthropic, Ollama, HTTP endpoints, custom |
+| 🤝 **Multi-Agent** | Delegate tasks to sub-agents with result passing |
+| 📊 **Observable** | Event hooks: `on("thinking")`, `on("action")`, `on("observation")` |
 
 ## 🚀 Quick Start
 
 ```python
 from tiny_agent import Agent, OpenAIAdapter, tool, AgentConfig
 
-# 1. Define your tools
+# Define tools
 @tool()
-def calculate(expression: str) -> float:
-    """Evaluate a mathematical expression."""
-    return eval(expression)  # In production, use a safe parser!
+def calculator(expression: str) -> str:
+    """Evaluate a math expression and return the result."""
+    result = eval(expression)
+    return str(result)
 
 @tool()
-def search(query: str) -> str:
-    """Search for information."""
-    return f"Results for: {query}"
+def web_search(query: str) -> str:
+    """Search the web for information."""
+    return f"Found results for: {query}"
 
-# 2. Configure your LLM adapter
+# Configure LLM
 llm = OpenAIAdapter(
-    api_key="your-api-key",
-    model="gpt-3.5-turbo"
+    api_key=os.environ["OPENAI_API_KEY"],
+    model="gpt-4o-mini",
 )
 
-# 3. Create the agent
+# Create agent
 agent = Agent(
     llm=llm,
     config=AgentConfig(
-        system_prompt="You are a helpful assistant with access to tools.",
-        max_iterations=10
+        system_prompt="You are a helpful assistant. Use tools when needed.",
+        max_iterations=10,
     )
 )
 
-# 4. Register tools
-agent.tools.register(calculate._tiny_agent_tool)
-agent.tools.register(search._tiny_agent_tool)
+# Register tools
+agent.tools.register(calculator._tiny_agent_tool)
+agent.tools.register(web_search._tiny_agent_tool)
 
-# 5. Run!
-result = agent.run("What is 15 * 23?")
-print(result)  # -> "345"
+# Run
+result = agent.run("What is (15 * 23) + 7?")
+print(result)  # → "382"
+```
+
+## 💡 Real-World Examples
+
+### Example 1: Bounty Hunter Agent
+
+```python
+"""Autonomous bug bounty hunting agent."""
+import os
+from tiny_agent import Agent, OpenAIAdapter, tool, AgentConfig
+
+@tool()
+def search_code(query: str, language: str = "python") -> str:
+    """Search code on GitHub for vulnerability patterns."""
+    return f"Found repos matching: {query} in {language}"
+
+@tool()
+def analyze_repo(repo_url: str) -> str:
+    """Clone and analyze a repo for security issues."""
+    return "Analyzing repo for XSS, SQL injection, SSRF patterns..."
+
+@tool()
+def report_bug(domain: str, finding: str, severity: str) -> str:
+    """File a bug report. Returns the report URL."""
+    return f"https://bugbounty.example.com/reports/new?domain={domain}&severity={severity}"
+
+agent = Agent(
+    llm=OpenAIAdapter(api_key=os.environ["OPENAI_API_KEY"], model="gpt-4o-mini"),
+    config=AgentConfig(
+        system_prompt=(
+            "You are an elite bug bounty hunter. Search for high-value targets, "
+            "find real vulnerabilities, and file quality reports. "
+            "Focus on IDOR, XSS, and SSRF in fintech targets."
+        ),
+        max_iterations=20,
+        budget_limit=2.00,
+    ),
+    name="bounty-hunter",
+)
+
+for tool_obj in [search_code, analyze_repo, report_bug]:
+    agent.tools.register(tool_obj._tiny_agent_tool)
+
+result = agent.run(
+    "Find 3 high-severity XSS vulnerabilities in fintech APIs on GitHub. "
+    "Analyze the top result and file a bug report."
+)
+print(result)
+```
+
+### Example 2: Streaming ReAct Loop
+
+```python
+"""Stream the agent's full reasoning process."""
+# Agent hooks for real-time visibility
+def on_thinking(iter):
+    print(f"\n🤔 [Iteration {iter}] Thinking...")
+def on_action(name, args):
+    print(f"  ⚡ Action: {name}({args})")
+def on_observation(obs):
+    print(f"  👁️  Observed: {str(obs)[:100]}...")
+
+agent = Agent(llm=llm, config=AgentConfig(max_iterations=5))
+agent.on("thinking", on_thinking)
+agent.on("action", on_action)
+agent.on("observation", on_observation)
+
+# Stream the full ReAct reasoning, not just the final answer
+full_output = ""
+for chunk in agent.run("Write a haiku about debugging", stream=True):
+    print(chunk, end="", flush=True)
+    full_output += chunk
+```
+
+### Example 3: Checkpoint + Resume (Crash Recovery)
+
+```python
+"""Agent that survives container restarts."""
+import json
+from tiny_agent import Agent, tool, AgentConfig
+
+CHECKPOINT_FILE = "/tmp/agent_checkpoint.json"
+
+def load_checkpoint() -> dict | None:
+    try:
+        with open(CHECKPOINT_FILE) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def save_checkpoint(agent: Agent, step: int):
+    state = {
+        "step": step,
+        "history": [m.to_dict() for m in agent.get_history()],
+    }
+    with open(CHECKPOINT_FILE, "w") as f:
+        json.dump(state, f)
+
+agent = Agent(llm=llm, config=AgentConfig(max_iterations=100))
+
+# Resume from checkpoint if it exists
+checkpoint = load_checkpoint()
+if checkpoint:
+    print(f"Resuming from step {checkpoint['step']}")
+    for msg_dict in checkpoint["history"]:
+        from tiny_agent import Message
+        agent.history.append(Message.from_dict(msg_dict))
+    agent._iterations = checkpoint["step"]
+
+# Run with checkpoint every 10 steps
+CHECKPOINT_INTERVAL = 10
+for i in range(agent._iterations, 100):
+    try:
+        agent.run(f"Process batch {i}")
+        if i % CHECKPOINT_INTERVAL == 0:
+            save_checkpoint(agent, i + 1)
+    except Exception as e:
+        print(f"Crashed at step {i}: {e}")
+        save_checkpoint(agent, i)
+        break
+```
+
+### Example 4: Budget Enforcement
+
+```python
+"""Agent that stops before burning through credits."""
+from tiny_agent import Agent, OpenAIAdapter, AgentConfig, BudgetExceeded
+
+def on_budget_warning(spent: float, limit: float):
+    print(f"⚠️  Budget warning: ${spent:.4f} / ${limit:.2f} ({spent/limit*100:.0f}%)")
+
+agent = Agent(
+    llm=OpenAIAdapter(api_key=os.environ["OPENAI_API_KEY"], model="gpt-4o"),
+    config=AgentConfig(
+        budget_limit=0.10,      # Hard cap: $0.10 per run
+        budget_warn_at=0.7,    # Warn at $0.07
+    ),
+    name="budget-agent",
+)
+
+agent.budget.on_warn = on_budget_warning
+
+try:
+    result = agent.run("Analyze this codebase for performance issues")
+    print(result)
+except BudgetExceeded as e:
+    print(f"Stopped: {e}")
+    print(f"Final spend: ${agent.budget.spent:.4f}")
+```
+
+### Example 5: Multi-Agent Pipeline
+
+```python
+"""Coordinated multi-agent workflow."""
+researcher = Agent(llm=llm, name="researcher",
+    config=AgentConfig(system_prompt="You research topics thoroughly.", max_iterations=5))
+writer = Agent(llm=llm, name="writer",
+    config=AgentConfig(system_prompt="You write clear, concise summaries.", max_iterations=5))
+editor = Agent(llm=llm, name="editor",
+    config=AgentConfig(system_prompt="You edit for clarity and brevity.", max_iterations=3))
+
+coordinator = Agent(llm=llm, name="coordinator", config=AgentConfig(max_iterations=3))
+coordinator.register_delegate("researcher", researcher)
+coordinator.register_delegate("writer", writer)
+coordinator.register_delegate("editor", editor)
+
+result = coordinator.run(
+    "Research quantum computing basics, write a 3-paragraph summary, "
+    "then edit for clarity. Return the final edited version."
+)
 ```
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         Agent                                │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
-│  │   LLM    │  │  Tools   │  │  Memory  │  │   Plan     │  │
-│  │  Adapter │  │ Registry │  │  Backend │  │  Manager   │  │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────┬──────┘  │
-│       │             │             │              │         │
-│       └─────────────┴─────────────┴──────────────┘         │
-│                         │                                   │
-│                   ┌─────┴─────┐                          │
-│                   │ ReAct Loop │                          │
-│                   │ (reason → │                          │
-│                   │  act →    │                          │
-│                   │ observe)   │                          │
-│                   └───────────┘                          │
-└─────────────────────────────────────────────────────────────┘
+tiny-agent = ReAct loop + Observable + Budget + Idempotency
+
+ReAct Loop:
+  query → think → act → observe → think → act → observe → ... → answer
+                ↑___________________________↓
 ```
 
-## 📖 Examples
+## 🧩 LLM Adapters
 
-### Calculator Agent with Memory
-
-```python
-from tiny_agent import Agent, InMemoryMemory, AgentConfig, MockLLM
-
-# Using MockLLM for demonstration (no API key needed!)
-llm = MockLLM(responses=[...])  # Or use OpenAIAdapter, OllamaAdapter, etc.
-
-memory = InMemoryMemory()
-agent = Agent(
-    llm=llm,
-    memory=memory,
-    config=AgentConfig(
-        system_prompt="You are a math tutor.",
-        max_history=20
-    )
-)
-
-# Add calculator tool
-@tool()
-def add(a: int, b: int) -> int:
-    """Add two numbers."""
-    return a + b
-
-agent.tools.register(add._tiny_agent_tool)
-
-# Conversation 1
-result1 = agent.run("What is 5 + 3?")
-
-# Conversation 2 (memory remembers context!)
-result2 = agent.run("What about plus 2 more?")
-```
-
-### Multi-Agent Delegation
-
-```python
-from tiny_agent import Agent, AgentConfig
-
-# Create specialized agents
-researcher = Agent(llm=llm, name="Researcher", config=AgentConfig())
-writer = Agent(llm=llm, name="Writer", config=AgentConfig())
-editor = Agent(llm=llm, name="Editor", config=AgentConfig())
-
-# Register delegates on coordinator
-coordinator = Agent(llm=llm, name="Coordinator", config=AgentConfig())
-coordinator.register_delegate("research", researcher)
-coordinator.register_delegate("write", writer)
-coordinator.register_delegate("edit", editor)
-
-# The coordinator can delegate tasks
-coordinator.run("Research quantum computing, then write a summary, then edit it")
-```
-
-### Streaming Responses
-
-```python
-agent = Agent(llm=llm)
-
-# Stream response chunks as they arrive
-for chunk in agent.run("Tell me a story", stream=True):
-    print(chunk, end="", flush=True)
-```
-
-### Custom HTTP Adapter
-
-```python
-from tiny_agent import HTTPAdapter
-
-# Connect to any HTTP endpoint
-llm = HTTPAdapter(
-    url="https://api.mycustomllm.com/v1/chat",
-    headers={"Authorization": "Bearer my-token"},
-    response_parser=lambda r: r["output"]["text"]
-)
-
-agent = Agent(llm=llm)
-```
-
-## 🧩 Adapters
-
-Tiny Agent supports multiple LLM providers out of the box:
-
-| Adapter | Provider | Streaming | Tools |
-|---------|----------|-----------|-------|
-| `OpenAIAdapter` | OpenAI / Azure | ✅ Yes | ✅ Yes |
-| `AnthropicAdapter` | Claude / Anthropic | ⚠️ Partial | ✅ Yes |
-| `OllamaAdapter` | Local Ollama | ✅ Yes | ✅ Yes |
-| `HTTPAdapter` | Custom endpoints | ❌ No | ❌ No |
-| `UserAdapter` | Interactive (demo) | ❌ No | ❌ No |
+| Adapter | Provider | Streaming | Tool Calls |
+|---------|----------|-----------|-----------|
+| `OpenAIAdapter` | OpenAI / Azure / compatible | ✅ | ✅ |
+| `AnthropicAdapter` | Claude / Anthropic | ⚠️ | ✅ |
+| `OllamaAdapter` | Local Ollama | ✅ | ✅ |
+| `HTTPAdapter` | Any HTTP endpoint | ❌ | ❌ |
+| `UserAdapter` | Interactive console | ❌ | ❌ |
 
 All adapters use only `urllib.request` — **zero external dependencies**.
 
@@ -181,114 +270,45 @@ All adapters use only `urllib.request` — **zero external dependencies**.
 
 | Feature | Tiny Agent | LangChain | CrewAI | AutoGen |
 |---------|------------|-----------|--------|---------|
-| **File Count** | 1 file | 1000+ files | 500+ files | 800+ files |
+| **File Count** | 1 | 1000+ | 500+ | 800+ |
 | **Dependencies** | 0 | 50+ | 30+ | 40+ |
-| **Bundle Size** | ~30KB | ~50MB | ~30MB | ~40MB |
-| **ReAct Loop** | ✅ Native | ✅ Via chains | ✅ Via tasks | ✅ Via agents |
-| **Tool Registry** | ✅ Decorator | ✅ Tool defs | ✅ @tool | ✅ @register |
-| **Memory** | ✅ In-memory | ✅ Vector stores | ✅ Crew memory | ✅ Context |
-| **Streaming** | ✅ Yes | ✅ Yes | ❌ No | ⚠️ Partial |
-| **Planning** | ✅ Auto | ⚠️ Via prompts | ✅ Tasks | ✅ Group chat |
-| **Delegation** | ✅ Yes | ⚠️ Complex | ✅ Crews | ✅ Auto |
-| **Install Time** | Instant | 1-5 min | 1-3 min | 2-5 min |
-| **Learning Curve** | Low | High | Medium | High |
+| **ReAct Loop** | ✅ Native | ✅ | ✅ | ✅ |
+| **Streaming** | ✅ Full loop | ✅ | ❌ | ⚠️ |
+| **Checkpoint** | ✅ Manual | ❌ | ❌ | ❌ |
+| **Budget Governor** | ✅ Native | ❌ | ❌ | ❌ |
+| **Idempotency** | ✅ Native | ❌ | ❌ | ❌ |
 
-## 🧪 Testing
+## 🔧 Event Hooks
 
-```bash
-# Run all tests
-python -m unittest test_tiny_agent -v
+```python
+agent = Agent(llm=llm, config=AgentConfig())
 
-# Or run directly
-python test_tiny_agent.py
+agent.on("run_started",   lambda q: print(f"Started: {q}"))
+agent.on("thinking",      lambda i: print(f"Thinking {i}..."))
+agent.on("action",        lambda n, a: print(f"Action: {n}"))
+agent.on("observation",   lambda o: print(f"Observed: {o}"))
+agent.on("error",         lambda e: print(f"Error: {e}"))
+agent.on("run_complete",  lambda r: print(f"Done: {r}"))
+agent.on("plan_created",   lambda p: print(f"Plan: {p.steps}"))
 ```
 
-## 📈 Benchmarking
+## Ecosystem
 
-```bash
-python benchmark.py
-```
+Part of the **tiny-\*** ecosystem — zero-dependency Python utilities:
 
-Sample output:
-```
-Tiny Agent Benchmark
-====================
-Iterations/sec:     1,234.56
-Tool calls/sec:       987.65
-Memory ops/sec:     45,678.90
-Total time:          0.123s
-```
-
-## 🎯 Use Cases
-
-- **Prototyping** — Spin up an agent in seconds, no dependency hell
-- **Embedded Systems** — Ship a full agent in ~30KB
-- **Education** — Learn agent architecture by reading one file
-- **Production** — Zero-dependency means zero supply-chain risk
-- **Custom LLMs** — Plug in any HTTP endpoint or local model
-- **Agent Orchestration** — Coordinate multiple specialized agents
-
-## 📦 Installation
-
-Just copy `tiny_agent.py` into your project. That's it.
-
-```bash
-# Or clone the repo
-git clone https://github.com/tiny-agent/tiny-agent.git
-cd tiny-agent
-python example.py
-```
-
-No `pip install`. No `requirements.txt`. No version conflicts. ✨
-
-## 📝 License
-
-MIT License — see [LICENSE](LICENSE) file.
-
-## 🤝 Contributing
-
-Tiny Agent intentionally stays small. Contributions that add features should:
-
-1. Not introduce external dependencies
-2. Fit within the single-file philosophy
-3. Include tests in `test_tiny_agent.py`
-
-## 🔗 Links
-
-- **Repository:** [github.com/tiny-agent/tiny-agent](https://github.com/tiny-agent/tiny-agent)
-- **Issues:** [github.com/tiny-agent/tiny-agent/issues](https://github.com/tiny-agent/tiny-agent/issues)
+| Repo | Description |
+|------|-------------|
+| [tiny-mesh](https://github.com/hussain-alsaibai/tiny-mesh) | Service mesh proxy |
+| [tiny-repl](https://github.com/hussain-alsaibai/tiny-repl) | Agent debugging REPL |
+| [tiny-trace](https://github.com/hussain-alsaibai/tiny-trace) | Distributed tracing |
+| [tiny-checkpoint](https://github.com/hussain-alsaibai/tiny-checkpoint) | Agent suspend/resume |
+| [tiny-llm-router](https://github.com/hussain-alsaibai/tiny-llm-router) | Multi-provider LLM routing |
+| [tiny-llm](https://github.com/hussain-alsaibai/tiny-llm) | Unified LLM client |
+| [fast-cache](https://github.com/hussain-alsaibai/fast-cache) | LRU + TTL cache |
+| [tiny-log](https://github.com/hussain-alsaibai/tiny-log) | Structured logging |
+| [tiny-prompt-cache](https://github.com/hussain-alsaibai/tiny-prompt-cache) | LLM prompt cache |
+| [dev-masterkit](https://github.com/hussain-alsaibai/dev-masterkit) | Curated dev tools |
 
 ---
 
-## 🦞 Ecosystem
-
-`tiny-agent` is part of the **tiny-*** zero-dependency agent infrastructure toolkit:
-
-- [tiny-router](https://github.com/hussain-alsaibai/tiny-router) — HTTP routing
-- [tiny-log](https://github.com/hussain-alsaibai/tiny-log) — Structured logging
-- [tiny-validator](https://github.com/hussain-alsaibai/tiny-validator) — Input validation
-- [tiny-cli](https://github.com/hussain-alsaibai/tiny-cli) — CLI parser
-- [tiny-config](https://github.com/hussain-alsaibai/tiny-config) — Config loader
-- [fast-cache](https://github.com/hussain-alsaibai/fast-cache) — In-memory cache
-- [tiny-mcp](https://github.com/hussain-alsaibai/tiny-mcp) — MCP server
-- [tiny-mcp-client](https://github.com/hussain-alsaibai/tiny-mcp-client) — MCP client (stdio + SSE)
-- [tiny-mcp-gateway](https://github.com/hussain-alsaibai/tiny-mcp-gateway) — MCP proxy/router/gateway
-- [tiny-task](https://github.com/hussain-alsaibai/tiny-task) — Durable task queue
-- [tiny-retry](https://github.com/hussain-alsaibai/tiny-retry) — Retry with jitter + circuit breaker
-- [tiny-webhook](https://github.com/hussain-alsaibai/tiny-webhook) — Production webhook handler
-- [tiny-agent](https://github.com/hussain-alsaibai/tiny-agent) — Agent framework (this repo)
-- [tiny-embed](https://github.com/hussain-alsaibai/tiny-embed) — Embeddings
-- [snapdb](https://github.com/hussain-alsaibai/snapdb) — Embedded DB
-- [tiny-cron](https://github.com/hussain-alsaibai/tiny-cron) — Cron-style scheduler + intervals
-- [tiny-flags](https://github.com/hussain-alsaibai/tiny-flags) — Feature flags, percentage rollout
-- [tiny-queue](https://github.com/hussain-alsaibai/tiny-queue) — Persistent FIFO queue, retries
-
----
-
-<p align="center">Built with ❤️ for simplicity</p>
-
-## Today's siblings
-
-- [`tiny-metrics`](https://github.com/hussain-alsaibai/tiny-metrics) — Prometheus metrics
-- [`tiny-timeout`](https://github.com/hussain-alsaibai/tiny-timeout) — timeouts that work
-- [`tiny-idempotency`](https://github.com/hussain-alsaibai/tiny-idempotency) — idempotency keys
+*MIT License. https://github.com/hussain-alsaibai/tiny-agent*
