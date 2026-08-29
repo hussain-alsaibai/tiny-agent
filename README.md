@@ -74,6 +74,39 @@ result = agent.run("What is (15 * 23) + 7?")
 print(result)  # → "382"
 ```
 
+## Quick Reference
+
+```python
+# One-liner agent
+from tiny_agent import Agent, OpenAIAdapter, tool, AgentConfig
+import os
+
+@tool()
+def search(query: str) -> str:
+    """Web search tool."""
+    return f"Results for: {query}"
+
+agent = Agent(
+    llm=OpenAIAdapter(api_key=os.environ["OPENAI_API_KEY"], model="gpt-4o-mini"),
+    config=AgentConfig(max_iterations=5),
+)
+agent.tools.register(search._tiny_agent_tool)
+result = agent.run("Search for the latest AI news")
+```
+
+### CLI Usage
+
+```bash
+# Install
+pip install tiny-agent
+
+# Or from source
+pip install git+https://github.com/hussain-alsaibai/tiny-agent.git
+
+# Run examples
+python -m tiny_agent.example
+```
+
 ## 💡 Real-World Examples
 
 ### Example 1: Bounty Hunter Agent

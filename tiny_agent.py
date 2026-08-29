@@ -33,7 +33,7 @@ from typing import (
     runtime_checkable,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
     "Agent",
     "ToolRegistry",
@@ -1033,7 +1033,8 @@ class BudgetGovernor:
 
     def check(self, model: str, input_tokens: int = 0, output_tokens: int = 0) -> None:
         cost = self.record(model, input_tokens, output_tokens)
-        ratio = cost / self.limit_usd if self.limit_usd > 0 else 1.0
+        # Use cumulative spend for ratio so warnings/exceeded reflect total usage.
+        ratio = self._spent / self.limit_usd if self.limit_usd > 0 else 1.0
         if ratio >= 1.0:
             raise BudgetExceeded(
                 f"Budget exceeded: ${self._spent:.4f} > ${self.limit_usd:.2f}"
